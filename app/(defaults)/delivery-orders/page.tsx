@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { DataTable } from 'mantine-datatable';
 import { sortBy } from 'lodash';
 import { createClient } from '@supabase/supabase-js';
+import Link from 'next/link';
+import supabase from '@/lib/supabase';
 
 // Types
 interface Shop {
@@ -40,7 +42,7 @@ interface OrderData {
 // Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
 const deliveryMethods = [
     { value: 'pazar', label: 'Pazar Delivery' },
@@ -48,11 +50,12 @@ const deliveryMethods = [
     { value: 'external', label: 'External Company' },
 ];
 
-const statusSteps = ['processing', 'on the way', 'completed'];
+const statusSteps = ['processing', 'on_the_way', 'completed', 'cancelled'];
 const statusColors: Record<string, string> = {
     processing: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-300 dark:border-yellow-700',
-    'on the way': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-300 dark:border-blue-700',
+    on_the_way: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-300 dark:border-blue-700',
     completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-300 dark:border-green-700',
+    cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-300 dark:border-red-700',
 };
 
 const PAGE_SIZES = [10, 20, 30, 50, 100];
@@ -113,6 +116,45 @@ async function insertDeliveryOrder(order: OrderData) {
         },
     ]);
     return error;
+}
+
+async function updateDeliveryOrderStatus(order: OrderData, newStatus: string) {
+    // ابحث عن صف التوصيل لهذا الطلب
+    const { data: existing, error: fetchError } = await supabase.from('delivery_orders').select('id').eq('order_id', order.id).single();
+
+    if (existing) {
+        // إذا كان موجودًا، قم بالتحديث فقط
+        await supabase.from('delivery_orders').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', existing.id);
+    } else {
+        // إذا لم يكن موجودًا، يمكنك إدخاله (اختياري)
+        await supabase.from('delivery_orders').insert([
+            {
+                order_id: order.id,
+                shop_id: order.products?.shop,
+                car_id: order.shipping_method?.car_id || null,
+                driver_id: order.shipping_method?.driver_id || null,
+                status: newStatus,
+                notes: order.notes || '',
+                created_at: order.created_at,
+                updated_at: order.updated_at || order.created_at,
+            },
+        ]);
+    }
+}
+
+function statusLabel(status: string) {
+    switch (status) {
+        case 'processing':
+            return 'Processing';
+        case 'on_the_way':
+            return 'On the way';
+        case 'completed':
+            return 'Completed';
+        case 'cancelled':
+            return 'Cancelled';
+        default:
+            return status;
+    }
 }
 
 export default function DeliveryOrdersPage() {
@@ -331,7 +373,11 @@ export default function DeliveryOrdersPage() {
                                     accessor: 'id',
                                     title: 'Order ID',
                                     sortable: true,
-                                    render: ({ id }) => <strong className="text-info">#{id}</strong>,
+                                    render: ({ id }) => (
+                                        <Link href={`/delivery-orders/preview/${id}`} className="text-primary font-bold hover:underline" style={{ cursor: 'pointer' }}>
+                                            #{id}
+                                        </Link>
+                                    ),
                                 },
                                 {
                                     accessor: 'image',
@@ -423,17 +469,9 @@ export default function DeliveryOrdersPage() {
                                                         paddingLeft: 6,
                                                     }}
                                                 >
-                                                    {uniqueStatusSteps.map((s) => (
-                                                        <option
-                                                            key={s}
-                                                            value={s}
-                                                            className={statusColors[s]}
-                                                            style={{
-                                                                color: s === 'processing' ? '#b45309' : s === 'on the way' ? '#1d4ed8' : s === 'completed' ? '#166534' : undefined,
-                                                                background: s === 'processing' ? '#fef9c3' : s === 'on the way' ? '#dbeafe' : s === 'completed' ? '#bbf7d0' : undefined,
-                                                            }}
-                                                        >
-                                                            {s.replace(/^\w/, (c) => c.toUpperCase())}
+                                                    {statusSteps.map((s) => (
+                                                        <option key={s} value={s}>
+                                                            {statusLabel(s)}
                                                         </option>
                                                     ))}
                                                 </select>
@@ -445,11 +483,8 @@ export default function DeliveryOrdersPage() {
                                                             // 1. تحديث حالة الطلب في جدول orders
                                                             await updateOrderStatus(id, selectedStatus);
 
-                                                            // 2. رفع كل بيانات الطلب إلى جدول delivery_orders
-                                                            await insertDeliveryOrder({
-                                                                ...raw,
-                                                                status: selectedStatus,
-                                                            });
+                                                            // 2. تحديث حالة التوصيل فقط (بدون تكرار الصفوف)
+                                                            await updateDeliveryOrderStatus(raw, selectedStatus);
 
                                                             // 3. تحديث الحالة في الجدول مباشرة
                                                             setDisplayOrders((prev) => prev.map((order) => (order.id === id ? { ...order, status: selectedStatus } : order)));
