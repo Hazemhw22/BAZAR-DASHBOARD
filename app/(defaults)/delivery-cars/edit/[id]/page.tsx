@@ -6,12 +6,16 @@ import supabase from '@/lib/supabase';
 import { Alert } from '@/components/elements/alerts/elements-alerts-default';
 import { getTranslation } from '@/i18n';
 
+interface EditPageProps {
+    params: { id: string };
+}
+
 interface ShopOption {
     id: number;
     shop_name: string;
 }
 
-const AddDeliveryCarPage = () => {
+const EditDeliveryCarPage = ({ params }: EditPageProps) => {
     const router = useRouter();
     const { t } = getTranslation();
     const [shops, setShops] = useState<ShopOption[]>([]);
@@ -33,12 +37,30 @@ const AddDeliveryCarPage = () => {
     });
 
     useEffect(() => {
-        const fetchShops = async () => {
-            const { data } = await supabase.from('shops').select('id, shop_name').order('shop_name', { ascending: true });
-            setShops((data as ShopOption[]) || []);
+        const load = async () => {
+            const [{ data: shopData }, { data: car }] = await Promise.all([
+                supabase.from('shops').select('id, shop_name').order('shop_name', { ascending: true }),
+                supabase.from('delivery_cars').select('*').eq('id', params.id).single(),
+            ]);
+            setShops((shopData as ShopOption[]) || []);
+            if (car) {
+                setFormData({
+                    shop_id: car.shop_id?.toString() || '',
+                    plate_number: car.plate_number || '',
+                    brand: car.brand || '',
+                    model: car.model || '',
+                    color: car.color || '',
+                    capacity: car.capacity?.toString() || '',
+                    status: car.status || 'active',
+                    car_number: car.car_number || '',
+                    car_model: car.car_model || '',
+                    driver_name: car.driver_name || '',
+                    driver_phone: car.driver_phone || '',
+                });
+            }
         };
-        fetchShops();
-    }, []);
+        load();
+    }, [params.id]);
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -60,10 +82,11 @@ const AddDeliveryCarPage = () => {
                 car_model: formData.car_model || null,
                 driver_name: formData.driver_name || null,
                 driver_phone: formData.driver_phone || null,
+                updated_at: new Date().toISOString(),
             };
-            const { error } = await supabase.from('delivery_cars').insert([payload]);
+            const { error } = await supabase.from('delivery_cars').update(payload).eq('id', params.id);
             if (error) throw error;
-            setAlert({ type: 'success', message: t('created_successfully') });
+            setAlert({ type: 'success', message: t('updated_successfully') });
             setTimeout(() => router.push('/delivery-cars'), 1000);
         } catch (err: any) {
             console.error(err);
@@ -94,14 +117,14 @@ const AddDeliveryCarPage = () => {
                         </Link>
                     </li>
                     <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
-                        <span>{t('add_new')}</span>
+                        <span>{t('edit')}</span>
                     </li>
                 </ul>
             </div>
 
             <div className="mb-6">
-                <h1 className="text-2xl font-bold">{t('add_new')}</h1>
-                <p className="text-gray-500">{t('create_new_record')}</p>
+                <h1 className="text-2xl font-bold">{t('edit')}</h1>
+                <p className="text-gray-500">{t('update_record')}</p>
             </div>
 
             {alert && <Alert type={alert.type} title={alert.type === 'success' ? t('success') : t('error')} message={alert.message} onClose={() => setAlert(null)} />}
@@ -179,7 +202,7 @@ const AddDeliveryCarPage = () => {
                             {t('cancel')}
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={loading}>
-                            {loading ? t('submitting') : t('create')}
+                            {loading ? t('submitting') : t('update')}
                         </button>
                     </div>
                 </form>
@@ -188,6 +211,6 @@ const AddDeliveryCarPage = () => {
     );
 };
 
-export default AddDeliveryCarPage;
+export default EditDeliveryCarPage;
 
 

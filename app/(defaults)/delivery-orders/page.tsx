@@ -305,8 +305,8 @@ export default function DeliveryOrdersPage() {
         const { data, error } = await supabase.from('orders').update({ status: newStatus }).eq('id', orderId).select().single();
 
         if (!error && data) {
-            // بعد تحديث الطلب، أضف أو حدث في جدول delivery_orders
-            await insertDeliveryOrder(data);
+            // حدّث أو أدرج سجل التوصيل بشرط عدم إنشاء سجل مكرر
+            await updateDeliveryOrderStatus(data, newStatus);
             setDisplayOrders((prev) => prev.map((order) => (order.id === orderId ? { ...order, status: newStatus } : order)));
         }
     };
