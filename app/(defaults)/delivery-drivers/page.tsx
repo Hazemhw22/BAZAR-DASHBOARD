@@ -25,7 +25,7 @@ interface DriverRecord {
     created_at?: string | null;
     updated_at?: string | null;
     shops?: { shop_name: string } | null;
-    delivery_cars?: { plate_number: string | null } | null;
+    delivery_cars?: { plate_number: string | null; brand?: string | null; model?: string | null } | null;
 }
 
 const DeliveryDriversList = () => {
@@ -58,10 +58,7 @@ const DeliveryDriversList = () => {
     useEffect(() => {
         const fetchDrivers = async () => {
             try {
-                const { data, error } = await supabase
-                    .from('delivery_drivers')
-                    .select('*, shops(shop_name), delivery_cars(plate_number)')
-                    .order('created_at', { ascending: false });
+                const { data, error } = await supabase.from('delivery_drivers').select('*, shops(shop_name), delivery_cars(plate_number, brand, model)').order('created_at', { ascending: false });
                 if (error) throw error;
                 setItems((data || []) as DriverRecord[]);
             } catch (e) {
@@ -93,6 +90,8 @@ const DeliveryDriversList = () => {
                     (item.number || '').toLowerCase().includes(s) ||
                     (item.id_number || '').toLowerCase().includes(s) ||
                     (item.delivery_cars?.plate_number || '').toLowerCase().includes(s) ||
+                    (item.delivery_cars?.brand || '').toLowerCase().includes(s) ||
+                    (item.delivery_cars?.model || '').toLowerCase().includes(s) ||
                     (item.shops?.shop_name || '').toLowerCase().includes(s)
                 );
             }),
@@ -172,7 +171,14 @@ const DeliveryDriversList = () => {
                             { accessor: 'name', title: t('name'), sortable: true },
                             { accessor: 'shops.shop_name', title: t('shop'), sortable: true, render: ({ shops }) => <span>{shops?.shop_name || '—'}</span> },
                             { accessor: 'phone', title: t('phone'), sortable: true },
-                            { accessor: 'delivery_cars.plate_number', title: t('car'), sortable: true, render: ({ delivery_cars }) => <span>{delivery_cars?.plate_number || '—'}</span> },
+                            {
+                                accessor: 'delivery_cars.brand',
+                                title: t('car'),
+                                sortable: true,
+                                render: ({ delivery_cars }) => (
+                                    <span>{delivery_cars ? (delivery_cars.brand ? `${delivery_cars.brand} ${delivery_cars.model || ''}` : delivery_cars.plate_number || '—') : '—'}</span>
+                                ),
+                            },
                             {
                                 accessor: 'status',
                                 title: t('status'),
@@ -183,7 +189,12 @@ const DeliveryDriversList = () => {
                                     return <span className={`badge badge-outline-${statusClass}`}>{v || t('pending')}</span>;
                                 },
                             },
-                            { accessor: 'created_at', title: t('created_date'), sortable: true, render: ({ created_at }) => (created_at ? <span>{new Date(created_at).toLocaleDateString()}</span> : '') },
+                            {
+                                accessor: 'created_at',
+                                title: t('created_date'),
+                                sortable: true,
+                                render: ({ created_at }) => (created_at ? <span>{new Date(created_at).toLocaleDateString()}</span> : ''),
+                            },
                             {
                                 accessor: 'action',
                                 title: t('actions'),
@@ -248,5 +259,3 @@ const DeliveryDriversList = () => {
 };
 
 export default DeliveryDriversList;
-
-

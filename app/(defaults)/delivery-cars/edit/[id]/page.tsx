@@ -32,8 +32,7 @@ const EditDeliveryCarPage = ({ params }: EditPageProps) => {
         status: 'active',
         car_number: '',
         car_model: '',
-        driver_name: '',
-        driver_phone: '',
+      
     });
 
     useEffect(() => {
@@ -54,8 +53,7 @@ const EditDeliveryCarPage = ({ params }: EditPageProps) => {
                     status: car.status || 'active',
                     car_number: car.car_number || '',
                     car_model: car.car_model || '',
-                    driver_name: car.driver_name || '',
-                    driver_phone: car.driver_phone || '',
+                 
                 });
             }
         };
@@ -80,8 +78,7 @@ const EditDeliveryCarPage = ({ params }: EditPageProps) => {
                 status: formData.status || null,
                 car_number: formData.car_number || null,
                 car_model: formData.car_model || null,
-                driver_name: formData.driver_name || null,
-                driver_phone: formData.driver_phone || null,
+           
                 updated_at: new Date().toISOString(),
             };
             const { error } = await supabase.from('delivery_cars').update(payload).eq('id', params.id);
@@ -187,15 +184,7 @@ const EditDeliveryCarPage = ({ params }: EditPageProps) => {
                         <input id="car_model" type="text" className="form-input" value={formData.car_model} onChange={(e) => setFormData({ ...formData, car_model: e.target.value })} />
                     </div>
 
-                    <div>
-                        <label htmlFor="driver_name">{t('driver_name')}</label>
-                        <input id="driver_name" type="text" className="form-input" value={formData.driver_name} onChange={(e) => setFormData({ ...formData, driver_name: e.target.value })} />
-                    </div>
-
-                    <div>
-                        <label htmlFor="driver_phone">{t('driver_phone')}</label>
-                        <input id="driver_phone" type="tel" className="form-input" value={formData.driver_phone} onChange={(e) => setFormData({ ...formData, driver_phone: e.target.value })} />
-                    </div>
+                 
 
                     <div className="lg:col-span-2 flex justify-end gap-4 mt-4">
                         <button type="button" className="btn btn-outline-danger" onClick={() => router.push('/delivery-cars')} disabled={loading}>

@@ -6,8 +6,16 @@ import supabase from '@/lib/supabase';
 import { Alert } from '@/components/elements/alerts/elements-alerts-default';
 import { getTranslation } from '@/i18n';
 
-interface ShopOption { id: number; shop_name: string }
-interface CarOption { id: number; plate_number: string | null }
+interface ShopOption {
+    id: number;
+    shop_name: string;
+}
+interface CarOption {
+    id: number;
+    plate_number: string | null;
+    brand?: string | null;
+    model?: string | null;
+}
 
 const AddDeliveryDriverPage = () => {
     const router = useRouter();
@@ -30,7 +38,7 @@ const AddDeliveryDriverPage = () => {
         const fetchOptions = async () => {
             const [{ data: shopData }, { data: carsData }] = await Promise.all([
                 supabase.from('shops').select('id, shop_name').order('shop_name', { ascending: true }),
-                supabase.from('delivery_cars').select('id, plate_number').order('created_at', { ascending: false }),
+                supabase.from('delivery_cars').select('id, plate_number, brand, model').order('created_at', { ascending: false }),
             ]);
             setShops((shopData as ShopOption[]) || []);
             setCars((carsData as CarOption[]) || []);
@@ -77,10 +85,14 @@ const AddDeliveryDriverPage = () => {
                 </div>
                 <ul className="flex space-x-2 rtl:space-x-reverse mb-4">
                     <li>
-                        <Link href="/" className="text-primary hover:underline">{t('home')}</Link>
+                        <Link href="/" className="text-primary hover:underline">
+                            {t('home')}
+                        </Link>
                     </li>
                     <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
-                        <Link href="/delivery-drivers" className="text-primary hover:underline">{t('delivery_drivers') || 'Delivery Drivers'}</Link>
+                        <Link href="/delivery-drivers" className="text-primary hover:underline">
+                            {t('delivery_drivers')}
+                        </Link>
                     </li>
                     <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
                         <span>{t('add_new')}</span>
@@ -107,7 +119,9 @@ const AddDeliveryDriverPage = () => {
                         <select id="shop_id" className="form-select" value={formData.shop_id} onChange={(e) => setFormData({ ...formData, shop_id: e.target.value })} required>
                             <option value="">{t('select_shop')}</option>
                             {shops.map((s) => (
-                                <option key={s.id} value={s.id}>{s.shop_name}</option>
+                                <option key={s.id} value={s.id}>
+                                    {s.shop_name}
+                                </option>
                             ))}
                         </select>
                     </div>
@@ -117,7 +131,9 @@ const AddDeliveryDriverPage = () => {
                         <select id="car_id" className="form-select" value={formData.car_id} onChange={(e) => setFormData({ ...formData, car_id: e.target.value })}>
                             <option value="">{t('select') || 'Select'}</option>
                             {cars.map((c) => (
-                                <option key={c.id} value={c.id}>{c.plate_number || `#${c.id}`}</option>
+                                <option key={c.id} value={c.id}>
+                                    {c.brand ? `${c.brand}${c.model ? ' ' + c.model : ''} (${c.plate_number || '-'})` : `#${c.id}`}
+                                </option>
                             ))}
                         </select>
                     </div>
@@ -127,10 +143,8 @@ const AddDeliveryDriverPage = () => {
                         <input id="phone" type="tel" className="form-input" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
                     </div>
 
-                    
-
                     <div>
-                        <label htmlFor="id_number">{t('id_number') || 'ID Number'}</label>
+                        <label htmlFor="id_number">{t('id_number')}</label>
                         <input id="id_number" type="text" className="form-input" value={formData.id_number} onChange={(e) => setFormData({ ...formData, id_number: e.target.value })} />
                     </div>
 
@@ -144,8 +158,12 @@ const AddDeliveryDriverPage = () => {
                     </div>
 
                     <div className="lg:col-span-2 flex justify-end gap-4 mt-4">
-                        <button type="button" className="btn btn-outline-danger" onClick={() => router.push('/delivery-drivers')} disabled={loading}>{t('cancel')}</button>
-                        <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? t('submitting') : t('create')}</button>
+                        <button type="button" className="btn btn-outline-danger" onClick={() => router.push('/delivery-drivers')} disabled={loading}>
+                            {t('cancel')}
+                        </button>
+                        <button type="submit" className="btn btn-primary" disabled={loading}>
+                            {loading ? t('submitting') : t('create')}
+                        </button>
                     </div>
                 </form>
             </div>
@@ -154,5 +172,3 @@ const AddDeliveryDriverPage = () => {
 };
 
 export default AddDeliveryDriverPage;
-
-

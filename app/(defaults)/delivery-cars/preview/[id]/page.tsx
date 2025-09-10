@@ -19,11 +19,14 @@ interface DeliveryCar {
     updated_at?: string | null;
     car_number?: string | null;
     car_model?: string | null;
-    driver_name?: string | null;
-    driver_phone?: string | null;
     shops?: {
         shop_name: string;
     } | null;
+}
+
+interface DeliveryDriver {
+    name: string | null;
+    phone: string | null;
 }
 
 interface PageProps {
@@ -34,25 +37,28 @@ const DeliveryCarPreviewPage = ({ params }: PageProps) => {
     const router = useRouter();
     const { t } = getTranslation();
     const [car, setCar] = useState<DeliveryCar | null>(null);
+    const [driver, setDriver] = useState<DeliveryDriver | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchCar = async () => {
+        const fetchCarAndDriver = async () => {
             try {
-                const { data, error } = await supabase
-                    .from('delivery_cars')
-                    .select('*, shops(shop_name)')
-                    .eq('id', params.id)
-                    .single();
-                if (error) throw error;
-                setCar(data as DeliveryCar);
+                // جلب بيانات السيارة
+                const { data: carData, error: carError } = await supabase.from('delivery_cars').select('*, shops(shop_name)').eq('id', params.id).single();
+                if (carError) throw carError;
+                setCar(carData as DeliveryCar);
+
+                // جلب بيانات السائق المرتبط بالسيارة
+                const { data: driverData, error: driverError } = await supabase.from('delivery_drivers').select('name, phone').eq('car_id', params.id).single(); // إذا كان هناك أكثر من سائق يمكن إزالة single()
+                if (driverError) throw driverError;
+                setDriver(driverData as DeliveryDriver);
             } catch (e) {
-                console.error('Error fetching delivery car:', e);
+                console.error('Error fetching delivery car or driver:', e);
             } finally {
                 setLoading(false);
             }
         };
-        fetchCar();
+        fetchCarAndDriver();
     }, [params.id]);
 
     if (loading) {
@@ -165,11 +171,11 @@ const DeliveryCarPreviewPage = ({ params }: PageProps) => {
                             </div>
                             <div>
                                 <h4 className="font-medium text-gray-600 dark:text-gray-400">{t('driver_name')}</h4>
-                                <p className="mt-1">{car.driver_name || '-'}</p>
+                                <p className="mt-1">{driver?.name || '-'}</p>
                             </div>
                             <div>
                                 <h4 className="font-medium text-gray-600 dark:text-gray-400">{t('driver_phone')}</h4>
-                                <p className="mt-1">{car.driver_phone || '-'}</p>
+                                <p className="mt-1">{driver?.phone || '-'}</p>
                             </div>
                         </div>
                     </div>
@@ -180,5 +186,3 @@ const DeliveryCarPreviewPage = ({ params }: PageProps) => {
 };
 
 export default DeliveryCarPreviewPage;
-
-

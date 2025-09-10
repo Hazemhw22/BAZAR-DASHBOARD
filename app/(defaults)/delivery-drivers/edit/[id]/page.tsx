@@ -6,10 +6,20 @@ import supabase from '@/lib/supabase';
 import { Alert } from '@/components/elements/alerts/elements-alerts-default';
 import { getTranslation } from '@/i18n';
 
-interface ShopOption { id: number; shop_name: string }
-interface CarOption { id: number; plate_number: string | null }
+interface ShopOption {
+    id: number;
+    shop_name: string;
+}
+interface CarOption {
+    id: number;
+    plate_number: string | null;
+    brand: string | null;
+    model: string | null;
+}
 
-interface PageProps { params: { id: string } }
+interface PageProps {
+    params: { id: string };
+}
 
 const EditDeliveryDriverPage = ({ params }: PageProps) => {
     const router = useRouter();
@@ -33,7 +43,7 @@ const EditDeliveryDriverPage = ({ params }: PageProps) => {
         const load = async () => {
             const [{ data: shopData }, { data: carsData }, { data: driver }] = await Promise.all([
                 supabase.from('shops').select('id, shop_name').order('shop_name', { ascending: true }),
-                supabase.from('delivery_cars').select('id, plate_number').order('created_at', { ascending: false }),
+                supabase.from('delivery_cars').select('id, plate_number, brand, model').order('created_at', { ascending: false }),
                 supabase.from('delivery_drivers').select('*').eq('id', params.id).single(),
             ]);
             setShops((shopData as ShopOption[]) || []);
@@ -93,9 +103,19 @@ const EditDeliveryDriverPage = ({ params }: PageProps) => {
                     </svg>
                 </div>
                 <ul className="flex space-x-2 rtl:space-x-reverse mb-4">
-                    <li><Link href="/" className="text-primary hover:underline">{t('home')}</Link></li>
-                    <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2"><Link href="/delivery-drivers" className="text-primary hover:underline">{t('delivery_drivers') || 'Delivery Drivers'}</Link></li>
-                    <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2"><span>{t('edit')}</span></li>
+                    <li>
+                        <Link href="/" className="text-primary hover:underline">
+                            {t('home')}
+                        </Link>
+                    </li>
+                    <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
+                        <Link href="/delivery-drivers" className="text-primary hover:underline">
+                            {t('delivery_drivers') || 'Delivery Drivers'}
+                        </Link>
+                    </li>
+                    <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
+                        <span>{t('edit')}</span>
+                    </li>
                 </ul>
             </div>
 
@@ -116,14 +136,22 @@ const EditDeliveryDriverPage = ({ params }: PageProps) => {
                         <label htmlFor="shop_id">{t('shop')}</label>
                         <select id="shop_id" className="form-select" value={formData.shop_id} onChange={(e) => setFormData({ ...formData, shop_id: e.target.value })} required>
                             <option value="">{t('select_shop')}</option>
-                            {shops.map((s) => (<option key={s.id} value={s.id}>{s.shop_name}</option>))}
+                            {shops.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                    {s.shop_name}
+                                </option>
+                            ))}
                         </select>
                     </div>
                     <div>
                         <label htmlFor="car_id">{t('car')}</label>
                         <select id="car_id" className="form-select" value={formData.car_id} onChange={(e) => setFormData({ ...formData, car_id: e.target.value })}>
                             <option value="">{t('select') || 'Select'}</option>
-                            {cars.map((c) => (<option key={c.id} value={c.id}>{c.plate_number || `#${c.id}`}</option>))}
+                            {cars.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.brand ? `${c.brand}${c.model ? ' ' + c.model : ''} (${c.plate_number || '-'})` : `#${c.id}`}
+                                </option>
+                            ))}
                         </select>
                     </div>
                     <div>
@@ -147,8 +175,12 @@ const EditDeliveryDriverPage = ({ params }: PageProps) => {
                         </select>
                     </div>
                     <div className="lg:col-span-2 flex justify-end gap-4 mt-4">
-                        <button type="button" className="btn btn-outline-danger" onClick={() => router.push('/delivery-drivers')} disabled={loading}>{t('cancel')}</button>
-                        <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? t('submitting') : t('update')}</button>
+                        <button type="button" className="btn btn-outline-danger" onClick={() => router.push('/delivery-drivers')} disabled={loading}>
+                            {t('cancel')}
+                        </button>
+                        <button type="submit" className="btn btn-primary" disabled={loading}>
+                            {loading ? t('submitting') : t('update')}
+                        </button>
                     </div>
                 </form>
             </div>
@@ -157,5 +189,3 @@ const EditDeliveryDriverPage = ({ params }: PageProps) => {
 };
 
 export default EditDeliveryDriverPage;
-
-

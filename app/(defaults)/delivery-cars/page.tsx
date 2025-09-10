@@ -27,7 +27,6 @@ interface DeliveryCar {
     car_number?: string | null;
     car_model?: string | null;
     driver_name?: string | null;
-    driver_phone?: string | null;
     shops?: {
         shop_name: string;
     } | null;
@@ -65,10 +64,25 @@ const DeliveryCarsList = () => {
             try {
                 const { data, error } = await supabase
                     .from('delivery_cars')
-                    .select('*, shops(shop_name)')
+                    .select(
+                        `
+                        *,
+                        shops(shop_name),
+                        delivery_drivers!inner(name, phone)
+                    `,
+                    )
                     .order('created_at', { ascending: false });
+
                 if (error) throw error;
-                setItems((data || []) as DeliveryCar[]);
+
+                // اختر أول سائق مرتبط بالسيارة
+                const carsWithDriver = (data || []).map((car: any) => ({
+                    ...car,
+                    driver_name: car.delivery_drivers?.[0]?.name || '-',
+                    driver_phone: car.delivery_drivers?.[0]?.phone || '-',
+                }));
+
+                setItems(carsWithDriver as DeliveryCar[]);
             } catch (error) {
                 console.error('Error fetching delivery cars:', error);
             } finally {
@@ -100,7 +114,6 @@ const DeliveryCarsList = () => {
                     (item.car_number || '').toLowerCase().includes(s) ||
                     (item.car_model || '').toLowerCase().includes(s) ||
                     (item.driver_name || '').toLowerCase().includes(s) ||
-                    (item.driver_phone || '').toLowerCase().includes(s) ||
                     (item.shops?.shop_name || '').toLowerCase().includes(s)
                 );
             }),
@@ -176,43 +189,14 @@ const DeliveryCarsList = () => {
                             router.push(`/delivery-cars/edit/${record.id}`);
                         }}
                         columns={[
-                            {
-                                accessor: 'id',
-                                title: t('id'),
-                                sortable: true,
-                                render: ({ id }) => <strong className="text-info">#{id}</strong>,
-                            },
-                            {
-                                accessor: 'shops.shop_name',
-                                title: t('shop'),
-                                sortable: true,
-                                render: ({ shops }) => <span>{shops?.shop_name || '—'}</span>,
-                            },
-                            {
-                                accessor: 'plate_number',
-                                title: t('plate_number'),
-                                sortable: true,
-                            },
-                            {
-                                accessor: 'brand',
-                                title: t('brand'),
-                                sortable: true,
-                            },
-                            {
-                                accessor: 'model',
-                                title: t('model'),
-                                sortable: true,
-                            },
-                            {
-                                accessor: 'color',
-                                title: t('color'),
-                                sortable: true,
-                            },
-                            {
-                                accessor: 'capacity',
-                                title: t('capacity'),
-                                sortable: true,
-                            },
+                            { accessor: 'id', title: t('id'), sortable: true, render: ({ id }) => <strong className="text-info">#{id}</strong> },
+                            { accessor: 'shops.shop_name', title: t('shop'), sortable: true, render: ({ shops }) => <span>{shops?.shop_name || '—'}</span> },
+                            { accessor: 'plate_number', title: t('plate_number'), sortable: true },
+                            { accessor: 'brand', title: t('brand'), sortable: true },
+                            { accessor: 'model', title: t('model'), sortable: true },
+                            { accessor: 'color', title: t('color'), sortable: true },
+                            { accessor: 'capacity', title: t('capacity'), sortable: true },
+                            { accessor: 'driver_name', title: t('driver_name'), sortable: true, render: ({ driver_name }) => <span>{driver_name || '-'}</span> },
                             {
                                 accessor: 'status',
                                 title: t('status'),
@@ -293,5 +277,3 @@ const DeliveryCarsList = () => {
 };
 
 export default DeliveryCarsList;
-
-

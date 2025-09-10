@@ -10,7 +10,6 @@ interface DriverRecord {
     id: number;
     name: string;
     shop_id: number | string;
-    number?: string | null;
     phone?: string | null;
     id_number?: string | null;
     car_id?: number | null;
@@ -18,10 +17,12 @@ interface DriverRecord {
     created_at?: string | null;
     updated_at?: string | null;
     shops?: { shop_name: string } | null;
-    delivery_cars?: { plate_number: string | null } | null;
+    delivery_cars?: { brand: string | null } | null;
 }
 
-interface PageProps { params: { id: string } }
+interface PageProps {
+    params: { id: string };
+}
 
 const DeliveryDriverPreviewPage = ({ params }: PageProps) => {
     const router = useRouter();
@@ -32,11 +33,7 @@ const DeliveryDriverPreviewPage = ({ params }: PageProps) => {
     useEffect(() => {
         const fetchDriver = async () => {
             try {
-                const { data, error } = await supabase
-                    .from('delivery_drivers')
-                    .select('*, shops(shop_name), delivery_cars(plate_number)')
-                    .eq('id', params.id)
-                    .single();
+                const { data, error } = await supabase.from('delivery_drivers').select('*, shops(shop_name), delivery_cars(brand)').eq('id', params.id).single();
                 if (error) throw error;
                 setDriver(data as DriverRecord);
             } catch (e) {
@@ -72,6 +69,7 @@ const DeliveryDriverPreviewPage = ({ params }: PageProps) => {
 
     return (
         <div className="container mx-auto p-6">
+            {/* ⬅️ زر العودة والمسار */}
             <div className="flex items-center gap-5 mb-6">
                 <div onClick={() => router.back()}>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 mb-4 cursor-pointer text-primary rtl:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -80,10 +78,14 @@ const DeliveryDriverPreviewPage = ({ params }: PageProps) => {
                 </div>
                 <ul className="flex space-x-2 rtl:space-x-reverse mb-4">
                     <li>
-                        <Link href="/" className="text-primary hover:underline">{t('home')}</Link>
+                        <Link href="/" className="text-primary hover:underline">
+                            {t('home')}
+                        </Link>
                     </li>
                     <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
-                        <Link href="/delivery-drivers" className="text-primary hover:underline">{t('delivery_drivers') || 'Delivery Drivers'}</Link>
+                        <Link href="/delivery-drivers" className="text-primary hover:underline">
+                            {t('delivery_drivers') || 'Delivery Drivers'}
+                        </Link>
                     </li>
                     <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
                         <span>{t('preview')}</span>
@@ -91,6 +93,7 @@ const DeliveryDriverPreviewPage = ({ params }: PageProps) => {
                 </ul>
             </div>
 
+            {/* بطاقة التفاصيل */}
             <div className="panel">
                 <div className="mb-5 flex justify-between">
                     <h2 className="text-2xl font-bold">{driver.name || `#${driver.id}`}</h2>
@@ -101,6 +104,7 @@ const DeliveryDriverPreviewPage = ({ params }: PageProps) => {
                 </div>
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    {/* القسم الأول */}
                     <div className="space-y-6">
                         <div>
                             <h3 className="text-lg font-semibold">{t('shop')}</h3>
@@ -109,7 +113,9 @@ const DeliveryDriverPreviewPage = ({ params }: PageProps) => {
                         <div>
                             <h3 className="text-lg font-semibold">{t('status')}</h3>
                             <p className="mt-2">
-                                <span className={`badge badge-outline-${driver.status === 'active' ? 'success' : driver.status === 'inactive' ? 'danger' : 'warning'}`}>{driver.status || t('pending')}</span>
+                                <span className={`badge badge-outline-${driver.status === 'active' ? 'success' : driver.status === 'inactive' ? 'danger' : 'warning'}`}>
+                                    {driver.status || t('pending')}
+                                </span>
                             </p>
                         </div>
                         <div>
@@ -122,6 +128,7 @@ const DeliveryDriverPreviewPage = ({ params }: PageProps) => {
                         </div>
                     </div>
 
+                    {/* القسم الثاني */}
                     <div className="space-y-6">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
@@ -133,16 +140,12 @@ const DeliveryDriverPreviewPage = ({ params }: PageProps) => {
                                 <p className="mt-1">{driver.phone || '-'}</p>
                             </div>
                             <div>
-                                <h4 className="font-medium text-gray-600 dark:text-gray-400">{t('number') || 'Number'}</h4>
-                                <p className="mt-1">{driver.number || '-'}</p>
-                            </div>
-                            <div>
                                 <h4 className="font-medium text-gray-600 dark:text-gray-400">{t('id_number') || 'ID Number'}</h4>
                                 <p className="mt-1">{driver.id_number || '-'}</p>
                             </div>
                             <div>
                                 <h4 className="font-medium text-gray-600 dark:text-gray-400">{t('car')}</h4>
-                                <p className="mt-1">{driver.delivery_cars?.plate_number || (driver.car_id ? `#${driver.car_id}` : '-')}</p>
+                                <p className="mt-1">{driver.delivery_cars?.brand || '-'}</p>
                             </div>
                         </div>
                     </div>
@@ -153,5 +156,3 @@ const DeliveryDriverPreviewPage = ({ params }: PageProps) => {
 };
 
 export default DeliveryDriverPreviewPage;
-
-
