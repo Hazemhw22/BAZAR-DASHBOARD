@@ -32,7 +32,6 @@ const EditDeliveryDriverPage = ({ params }: PageProps) => {
     const [formData, setFormData] = useState({
         name: '',
         shop_id: '',
-        number: '',
         phone: '',
         id_number: '',
         car_id: '',
@@ -52,7 +51,6 @@ const EditDeliveryDriverPage = ({ params }: PageProps) => {
                 setFormData({
                     name: driver.name || '',
                     shop_id: driver.shop_id?.toString() || '',
-                    number: driver.number || '',
                     phone: driver.phone || '',
                     id_number: driver.id_number || '',
                     car_id: driver.car_id?.toString() || '',
@@ -74,7 +72,6 @@ const EditDeliveryDriverPage = ({ params }: PageProps) => {
             const payload = {
                 name: formData.name,
                 shop_id: parseInt(formData.shop_id),
-                number: formData.number || null,
                 phone: formData.phone || null,
                 id_number: formData.id_number || null,
                 car_id: formData.car_id ? parseInt(formData.car_id) : null,
@@ -158,10 +155,7 @@ const EditDeliveryDriverPage = ({ params }: PageProps) => {
                         <label htmlFor="phone">{t('phone')}</label>
                         <input id="phone" type="tel" className="form-input" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
                     </div>
-                    <div>
-                        <label htmlFor="number">{t('number') || 'Number'}</label>
-                        <input id="number" type="text" className="form-input" value={formData.number} onChange={(e) => setFormData({ ...formData, number: e.target.value })} />
-                    </div>
+                   
                     <div>
                         <label htmlFor="id_number">{t('id_number') || 'ID Number'}</label>
                         <input id="id_number" type="text" className="form-input" value={formData.id_number} onChange={(e) => setFormData({ ...formData, id_number: e.target.value })} />

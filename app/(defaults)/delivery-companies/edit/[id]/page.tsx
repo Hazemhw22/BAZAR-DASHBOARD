@@ -9,10 +9,9 @@ import IconX from '@/components/icon/icon-x';
 import IconPlus from '@/components/icon/icon-plus';
 import IconMapPin from '@/components/icon/icon-map-pin';
 import dynamic from 'next/dynamic';
-import 'leaflet/dist/leaflet.css';
 import { getTranslation } from '@/i18n';
 
-const MapSelector = dynamic(() => import('@/components/map/map-selector'), { ssr: false });
+// Map removed for delivery companies (no location field)
 
 const BUCKET = 'delivery-company-logos';
 
@@ -29,10 +28,11 @@ interface Company {
     details?: string | null;
     latitude?: number | null;
     longitude?: number | null;
+    owner_name?: string | null;
 }
 
-interface DriverForm { name: string; phone: string }
-interface CarForm { car_number: string; car_model: string }
+interface DriverForm { name: string; phone: string; id_number?: string; status?: string }
+interface CarForm { car_number: string; car_model: string; plate_number?: string; brand?: string; model?: string; color?: string; capacity?: string; status?: string }
 
 const EditDeliveryCompanyPage = () => {
     const params = useParams();
@@ -55,13 +55,22 @@ const EditDeliveryCompanyPage = () => {
             try {
                 const [{ data: company, error: companyError }, { data: companyDrivers }, { data: companyCars }] = await Promise.all([
                     supabase.from('delivery_companies').select('*').eq('id', id).single(),
-                    supabase.from('delivery_drivers').select('name, phone').eq('company_id', id),
-                    supabase.from('delivery_cars').select('car_number, car_model').eq('company_id', id),
+                    supabase.from('delivery_drivers').select('name, phone, id_number, status').eq('company_id', id),
+                    supabase.from('delivery_cars').select('id, car_number, car_model, plate_number, brand, model, color, capacity, status').eq('company_id', id),
                 ]);
                 if (companyError) throw companyError;
                 setForm((company as Company) || ({ id: 0, company_name: '' } as Company));
-                setDrivers(((companyDrivers as any[]) || []).map((d) => ({ name: d.name || '', phone: d.phone || '' })));
-                setCars(((companyCars as any[]) || []).map((c) => ({ car_number: c.car_number || '', car_model: c.car_model || '' })));
+                setDrivers(((companyDrivers as any[]) || []).map((d) => ({ name: d.name || '', phone: d.phone || '', id_number: d.id_number || '', status: d.status || 'active' })));
+                setCars(((companyCars as any[]) || []).map((c) => ({
+                    car_number: c.car_number || '',
+                    car_model: c.car_model || '',
+                    plate_number: c.plate_number || '',
+                    brand: c.brand || '',
+                    model: c.model || '',
+                    color: c.color || '',
+                    capacity: c.capacity || '',
+                    status: c.status || 'active',
+                })));
             } catch (e) {
                 console.error(e);
                 setAlert({ visible: true, message: t('error') || 'Error loading company', type: 'danger' });
@@ -106,15 +115,48 @@ const EditDeliveryCompanyPage = () => {
                 phone: form.phone || null,
                 email: form.email || null,
                 address: form.address || null,
-                location: form.location || null,
+                // no location
                 logo_url: form.logo_url || null,
                 delivery_price: form.delivery_price ?? null,
                 details: form.details || null,
-                latitude: form.latitude ?? null,
-                longitude: form.longitude ?? null,
+                // no latitude/longitude
+                owner_name: form.owner_name ?? null,
             };
             const { error } = await supabase.from('delivery_companies').update(payload).eq('id', id);
             if (error) throw error;
+            // Sync cars
+            if (cars) {
+                // Upsert cars without linking to shops (shop_id remains null)
+                for (const c of cars) {
+                    await supabase.from('delivery_cars').upsert({
+                        company_id: Number(id),
+                        shop_id: null,
+                        car_number: c.car_number || null,
+                        car_model: c.car_model || null,
+                        plate_number: c.plate_number || null,
+                        brand: c.brand || null,
+                        model: c.model || null,
+                        color: c.color || null,
+                        capacity: c.capacity || null,
+                        status: c.status || 'active',
+                    }, { onConflict: 'id' });
+                }
+
+                // Refresh cars to get IDs for driver linking
+                const { data: refreshedCars } = await supabase.from('delivery_cars').select('id').eq('company_id', id).order('id');
+
+                // Delete and re-insert drivers, pairing by index
+                await supabase.from('delivery_drivers').delete().eq('company_id', id);
+                const driverInserts = drivers.map((d, idx) => ({
+                    company_id: Number(id),
+                    car_id: refreshedCars?.[idx]?.id || null,
+                    name: d.name || null,
+                    phone: d.phone || null,
+                    id_number: d.id_number || null,
+                    status: d.status || 'active',
+                }));
+                if (driverInserts.length) await supabase.from('delivery_drivers').insert(driverInserts);
+            }
             setAlert({ visible: true, message: t('updated_successfully'), type: 'success' });
         } catch (err: any) {
             console.error(err);
@@ -156,6 +198,29 @@ const EditDeliveryCompanyPage = () => {
             )}
 
             <form onSubmit={save}>
+                {/* Cover Image (visual parity with shops) */}
+                <div className="panel mb-5 overflow-hidden">
+                    <div className="relative h-52 w-full">
+                        <img src={form.logo_url || '/assets/images/img-placeholder-fallback.webp'} alt={t('company_cover_image') || 'Company Cover'} className="h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                            <div className="text-center">
+                                <h2 className="text-xl font-bold text-white mb-4">{t('company_cover_image') || 'Company Cover Image'}</h2>
+                                <div className="relative">
+                                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        const url = await uploadLogo(file);
+                                        if (url) {
+                                            setForm((prev) => ({ ...prev, logo_url: url }));
+                                            await supabase.from('delivery_companies').update({ logo_url: url }).eq('id', id);
+                                        }
+                                    }} />
+                                    <button type="button" className="btn btn-primary" onClick={() => fileInputRef.current?.click()}>{t('change_cover') || 'Change Cover'}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div className="mb-6">
                     <Tabs
                         tabs={[
@@ -177,6 +242,10 @@ const EditDeliveryCompanyPage = () => {
                                 <div>
                                     <label className="block text-sm font-bold">{t('name')}</label>
                                     <input name="company_name" type="text" className="form-input" value={form.company_name || ''} onChange={handleInputChange} required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold">{t('company_owner') || 'Company Owner'}</label>
+                                    <input name="owner_name" type="text" className="form-input" value={form.owner_name || ''} onChange={handleInputChange} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold">{t('number') || 'Company Number'}</label>
@@ -223,36 +292,49 @@ const EditDeliveryCompanyPage = () => {
                     </div>
                 )}
 
+                {activeTab === 1 && (
+                    <div className="panel mb-5 space-y-6">
+                        {/* Cars */}
+                        {cars.map((c, i) => (
+                            <div key={i} className="p-4 rounded-lg space-y-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <input placeholder={t('plate_number')} className="form-input" value={c.plate_number || ''} onChange={(e) => setCars((prev) => prev.map((x, idx) => idx === i ? { ...x, plate_number: e.target.value } : x))} />
+                                    <input placeholder={t('brand')} className="form-input" value={c.brand || ''} onChange={(e) => setCars((prev) => prev.map((x, idx) => idx === i ? { ...x, brand: e.target.value } : x))} />
+                                    <input placeholder={t('model')} className="form-input" value={c.model || ''} onChange={(e) => setCars((prev) => prev.map((x, idx) => idx === i ? { ...x, model: e.target.value } : x))} />
+                                    <input placeholder={t('color')} className="form-input" value={c.color || ''} onChange={(e) => setCars((prev) => prev.map((x, idx) => idx === i ? { ...x, color: e.target.value } : x))} />
+                                    <input placeholder={t('capacity')} className="form-input" value={c.capacity || ''} onChange={(e) => setCars((prev) => prev.map((x, idx) => idx === i ? { ...x, capacity: e.target.value } : x))} />
+                                    <input placeholder={t('car_number')} className="form-input" value={c.car_number || ''} onChange={(e) => setCars((prev) => prev.map((x, idx) => idx === i ? { ...x, car_number: e.target.value } : x))} />
+                                    <input placeholder={t('car_model')} className="form-input" value={c.car_model || ''} onChange={(e) => setCars((prev) => prev.map((x, idx) => idx === i ? { ...x, car_model: e.target.value } : x))} />
+                                    <select className="form-select" value={c.status || 'active'} onChange={(e) => setCars((prev) => prev.map((x, idx) => idx === i ? { ...x, status: e.target.value } : x))}>
+                                        <option value="active">{t('active')}</option>
+                                        <option value="inactive">{t('inactive')}</option>
+                                    </select>
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* Drivers */}
+                        {drivers.map((d, i) => (
+                            <div key={i} className="p-4 rounded-lg space-y-4 border-t">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <input placeholder={t('name')} className="form-input" value={d.name} onChange={(e) => setDrivers((prev) => prev.map((x, idx) => idx === i ? { ...x, name: e.target.value } : x))} />
+                                    <input placeholder={t('phone')} className="form-input" value={d.phone} onChange={(e) => setDrivers((prev) => prev.map((x, idx) => idx === i ? { ...x, phone: e.target.value } : x))} />
+                                    <input placeholder={t('id_number')} className="form-input" value={d.id_number || ''} onChange={(e) => setDrivers((prev) => prev.map((x, idx) => idx === i ? { ...x, id_number: e.target.value } : x))} />
+                                    <select className="form-select" value={d.status || 'active'} onChange={(e) => setDrivers((prev) => prev.map((x, idx) => idx === i ? { ...x, status: e.target.value } : x))}>
+                                        <option value="active">{t('active')}</option>
+                                        <option value="inactive">{t('inactive')}</option>
+                                    </select>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {activeTab === 3 && (
                     <div className="panel mb-5">
                         <div className="mb-5"><h5 className="text-lg font-semibold dark:text-white-light">{t('address')}</h5></div>
-                        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                            <div className="sm:col-span-2">
-                                <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-white">{t('address')}</label>
-                                <div className="flex items-center">
-                                    <span className="mt-1 ltr:mr-2 rtl:ml-2 text-primary"><IconMapPin className="h-5 w-5" /></span>
-                                    <textarea name="address" className="form-textarea flex-1" value={form.address || ''} onChange={handleInputChange} rows={2} />
-                                </div>
-                            </div>
-                            <div className="sm:col-span-2">
-                                <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-white">{t('location')}</label>
-                                <input name="location" type="text" className="form-input" value={form.location || ''} onChange={handleInputChange} />
-                            </div>
-                            <div className="sm:col-span-2">
-                                <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-white">{t('company_location') || 'Company Location'}</label>
-                                <div className="h-[400px] mb-4">
-                                    <MapSelector
-                                        initialPosition={form.latitude && form.longitude ? [form.latitude, form.longitude] : null}
-                                        onChange={(lat, lng) => setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }))}
-                                        height="400px"
-                                        useCurrentLocationByDefault={false}
-                                    />
-                                </div>
-                                {form.latitude && form.longitude && (
-                                    <p className="text-sm mt-2">{t('selected_coordinates')}: <span className="font-semibold">{form.latitude.toFixed(6)}, {form.longitude.toFixed(6)}</span></p>
-                                )}
-                            </div>
-                        </div>
+                        <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-white">{t('address')}</label>
+                        <textarea name="address" className="form-textarea" value={form.address || ''} onChange={handleInputChange} rows={2} />
                     </div>
                 )}
 

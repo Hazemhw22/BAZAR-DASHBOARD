@@ -9,10 +9,9 @@ import IconX from '@/components/icon/icon-x';
 import IconMapPin from '@/components/icon/icon-map-pin';
 import IconPlus from '@/components/icon/icon-plus';
 import dynamic from 'next/dynamic';
-import 'leaflet/dist/leaflet.css';
 import { getTranslation } from '@/i18n';
 
-const MapSelector = dynamic(() => import('@/components/map/map-selector'), { ssr: false });
+// Map removed for delivery companies (no location in DB)
 const BUCKET = 'delivery-company-logos';
 
 interface DriverForm {
@@ -47,11 +46,10 @@ const AddDeliveryCompanyPage = () => {
         phone: '',
         email: '',
         address: '',
+        owner_name: '',
         logo_url: '',
         delivery_price: '',
         details: '',
-        latitude: null as number | null,
-        longitude: null as number | null,
     });
 
     const [cars, setCars] = useState<CarForm[]>([
@@ -75,9 +73,7 @@ const AddDeliveryCompanyPage = () => {
         setForm((prev) => ({ ...prev, [name]: value }));
     };
 
-    const handleLocationChange = (lat: number, lng: number) => {
-        setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }));
-    };
+    // No location handling
 
     // --- Car & Driver handlers ---
     const addCar = () =>
@@ -134,11 +130,11 @@ const AddDeliveryCompanyPage = () => {
                 phone: form.phone || null,
                 email: form.email || null,
                 address: form.address || null,
+                owner_name: form.owner_name || null,
                 logo_url: form.logo_url || null,
                 delivery_price: form.delivery_price ? parseFloat(form.delivery_price) : null,
                 details: form.details || null,
-                latitude: form.latitude,
-                longitude: form.longitude,
+                // no location fields
             };
             const { data: company, error } = await supabase.from('delivery_companies').insert([insertPayload]).select().single();
             if (error) throw error;
@@ -152,6 +148,7 @@ const AddDeliveryCompanyPage = () => {
                     .insert([
                         {
                             company_id: companyId,
+                            shop_id: null,
                             plate_number: c.plate_number,
                             brand: c.brand,
                             model: c.model,
@@ -221,6 +218,34 @@ const AddDeliveryCompanyPage = () => {
             {alert.visible && <Alert type={alert.type} title={alert.type === 'success' ? t('success') : t('error')} message={alert.message} onClose={() => setAlert({ ...alert, visible: false })} />}
 
             <form onSubmit={handleSubmit}>
+                {/* Cover Image (visual parity with shops) */}
+                <div className="panel mb-5 overflow-hidden">
+                    <div className="relative h-52 w-full">
+                        <img src={form.logo_url || '/assets/images/img-placeholder-fallback.webp'} alt="Company Cover" className="h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                            <div className="text-center flex flex-col items-center justify-center">
+                                <h2 className="text-xl font-bold text-white mb-4">{t('company_cover_image') || 'Company Cover Image'}</h2>
+                                <div className="relative inline-block">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+                                            const url = await uploadLogo(file);
+                                            if (url) setForm((prev) => ({ ...prev, logo_url: url }));
+                                        }}
+                                        className="hidden"
+                                        id="company-cover-upload"
+                                    />
+                                    <label htmlFor="company-cover-upload" className="btn btn-primary cursor-pointer">
+                                        {t('select_cover') || 'Select Cover'}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <Tabs
                     tabs={[
                         { name: t('basic_info'), icon: 'store' },
@@ -239,6 +264,10 @@ const AddDeliveryCompanyPage = () => {
                             <div>
                                 <label className="block text-sm font-bold">{t('name')}</label>
                                 <input type="text" className="form-input" name="company_name" value={form.company_name} onChange={handleInputChange} required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold">{t('company_owner') || 'Company Owner'}</label>
+                                <input type="text" className="form-input" name="owner_name" value={form.owner_name} onChange={handleInputChange} />
                             </div>
                             <div>
                                 <label className="block text-sm font-bold">{t('number')}</label>
@@ -340,9 +369,7 @@ const AddDeliveryCompanyPage = () => {
                 {activeTab === 3 && (
                     <div className="panel mb-5">
                         <textarea placeholder={t('address')} className="form-textarea mb-3" name="address" value={form.address} onChange={handleInputChange} />
-                        <div className="h-[400px]">
-                            <MapSelector initialPosition={form.latitude && form.longitude ? [form.latitude, form.longitude] : null} onChange={handleLocationChange} height="400px" />
-                        </div>
+                        {/* Location removed */}
                     </div>
                 )}
 
