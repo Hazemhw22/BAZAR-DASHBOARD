@@ -5,7 +5,6 @@ import Link from 'next/link';
 import supabase from '@/lib/supabase';
 import { Alert } from '@/components/elements/alerts/elements-alerts-default';
 import Tabs from '@/components/tabs';
-import IconCaretDown from '@/components/icon/icon-caret-down';
 import IconX from '@/components/icon/icon-x';
 import IconMapPin from '@/components/icon/icon-map-pin';
 import IconPlus from '@/components/icon/icon-plus';
@@ -14,17 +13,25 @@ import 'leaflet/dist/leaflet.css';
 import { getTranslation } from '@/i18n';
 
 const MapSelector = dynamic(() => import('@/components/map/map-selector'), { ssr: false });
-
 const BUCKET = 'delivery-company-logos';
 
 interface DriverForm {
     name: string;
     phone: string;
+    id_number: string;
+    status: string;
 }
 
 interface CarForm {
+    plate_number: string;
+    brand: string;
+    model: string;
+    color: string;
+    capacity: string;
+    status: string;
     car_number: string;
     car_model: string;
+    driver: DriverForm;
 }
 
 const AddDeliveryCompanyPage = () => {
@@ -47,8 +54,20 @@ const AddDeliveryCompanyPage = () => {
         longitude: null as number | null,
     });
 
-    const [drivers, setDrivers] = useState<DriverForm[]>([{ name: '', phone: '' }]);
-    const [cars, setCars] = useState<CarForm[]>([{ car_number: '', car_model: '' }]);
+    const [cars, setCars] = useState<CarForm[]>([
+        {
+            plate_number: '',
+            brand: '',
+            model: '',
+            color: '',
+            capacity: '',
+            status: 'active',
+            car_number: '',
+            car_model: '',
+            driver: { name: '', phone: '', id_number: '', status: 'active' },
+        },
+    ]);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -60,16 +79,28 @@ const AddDeliveryCompanyPage = () => {
         setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }));
     };
 
-    const addDriver = () => setDrivers((prev) => [...prev, { name: '', phone: '' }]);
-    const removeDriver = (index: number) => setDrivers((prev) => prev.filter((_, i) => i !== index));
-    const updateDriver = (index: number, field: keyof DriverForm, value: string) => {
-        setDrivers((prev) => prev.map((d, i) => (i === index ? { ...d, [field]: value } : d)));
-    };
-
-    const addCar = () => setCars((prev) => [...prev, { car_number: '', car_model: '' }]);
+    // --- Car & Driver handlers ---
+    const addCar = () =>
+        setCars((prev) => [
+            ...prev,
+            {
+                plate_number: '',
+                brand: '',
+                model: '',
+                color: '',
+                capacity: '',
+                status: 'active',
+                car_number: '',
+                car_model: '',
+                driver: { name: '', phone: '', id_number: '', status: 'active' },
+            },
+        ]);
     const removeCar = (index: number) => setCars((prev) => prev.filter((_, i) => i !== index));
-    const updateCar = (index: number, field: keyof CarForm, value: string) => {
+    const updateCarField = (index: number, field: keyof CarForm, value: string) => {
         setCars((prev) => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
+    };
+    const updateDriverField = (carIndex: number, field: keyof DriverForm, value: string) => {
+        setCars((prev) => prev.map((c, i) => (i === carIndex ? { ...c, driver: { ...c.driver, [field]: value } } : c)));
     };
 
     const uploadLogo = async (file: File): Promise<string | null> => {
@@ -108,42 +139,54 @@ const AddDeliveryCompanyPage = () => {
                 details: form.details || null,
                 latitude: form.latitude,
                 longitude: form.longitude,
-            } as any;
-
+            };
             const { data: company, error } = await supabase.from('delivery_companies').insert([insertPayload]).select().single();
             if (error) throw error;
 
-            const companyId = company.id as number;
+            const companyId = company.id;
 
-            // Insert related cars
-            const carsToInsert = cars
-                .filter((c) => c.car_number || c.car_model)
-                .map((c) => ({
-                    company_id: companyId,
-                    car_number: c.car_number || null,
-                    car_model: c.car_model || null,
-                }));
-            if (carsToInsert.length > 0) {
-                await supabase.from('delivery_cars').insert(carsToInsert);
-            }
+            // Insert cars and drivers
+            for (const c of cars) {
+                const { data: car, error: carError } = await supabase
+                    .from('delivery_cars')
+                    .insert([
+                        {
+                            company_id: companyId,
+                            plate_number: c.plate_number,
+                            brand: c.brand,
+                            model: c.model,
+                            color: c.color,
+                            capacity: c.capacity,
+                            status: c.status,
+                            car_number: c.car_number,
+                            car_model: c.car_model,
+                        },
+                    ])
+                    .select()
+                    .single();
+                if (carError) throw carError;
 
-            // Insert related drivers
-            const driversToInsert = drivers
-                .filter((d) => d.name)
-                .map((d) => ({
-                    company_id: companyId,
-                    name: d.name,
-                    phone: d.phone || null,
-                }));
-            if (driversToInsert.length > 0) {
-                await supabase.from('delivery_drivers').insert(driversToInsert);
+                // Insert driver linked to this car
+                if (c.driver.name) {
+                    const { error: driverError } = await supabase.from('delivery_drivers').insert([
+                        {
+                            company_id: companyId,
+                            car_id: car.id,
+                            name: c.driver.name,
+                            phone: c.driver.phone || null,
+                            id_number: c.driver.id_number || null,
+                            status: c.driver.status || 'active',
+                        },
+                    ]);
+                    if (driverError) throw driverError;
+                }
             }
 
             setAlert({ visible: true, message: t('created_successfully'), type: 'success' });
             router.push('/delivery-companies');
         } catch (err: any) {
             console.error(err);
-            setAlert({ visible: true, message: err.message || (t('error') || 'Error creating record'), type: 'danger' });
+            setAlert({ visible: true, message: err.message || t('error') || 'Error creating record', type: 'danger' });
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } finally {
             setLoading(false);
@@ -153,8 +196,8 @@ const AddDeliveryCompanyPage = () => {
     return (
         <div className="container mx-auto p-6">
             <div className="flex items-center gap-5 mb-6">
-                <div onClick={() => router.back()}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 mb-4 cursor-pointer text-primary rtl:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div onClick={() => router.back()} className="cursor-pointer">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 mb-4 text-primary rtl:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>
                 </div>
@@ -166,7 +209,7 @@ const AddDeliveryCompanyPage = () => {
                     </li>
                     <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
                         <Link href="/delivery-companies" className="text-primary hover:underline">
-                            {t('delivery_companies') || 'Delivery Companies'}
+                            {t('delivery_companies')}
                         </Link>
                     </li>
                     <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
@@ -175,187 +218,130 @@ const AddDeliveryCompanyPage = () => {
                 </ul>
             </div>
 
-            {alert.visible && (
-                <div className="mb-4">
-                    <Alert type={alert.type} title={alert.type === 'success' ? t('success') : t('error')} message={alert.message} onClose={() => setAlert({ ...alert, visible: false })} />
-                </div>
-            )}
+            {alert.visible && <Alert type={alert.type} title={alert.type === 'success' ? t('success') : t('error')} message={alert.message} onClose={() => setAlert({ ...alert, visible: false })} />}
 
             <form onSubmit={handleSubmit}>
-                <div className="mb-6">
-                    <Tabs
-                        tabs={[
-                            { name: t('basic_info'), icon: 'store' },
-                            { name: t('cars_and_drivers') || 'Cars & Drivers', icon: 'users' },
-                            { name: t('prices') || 'Prices', icon: 'cash' },
-                            { name: t('address') || 'Address', icon: 'map-pin' },
-                        ]}
-                        onTabClick={(tab) => setActiveTab(tab)}
-                        activeTab={activeTab}
-                    />
-                </div>
+                <Tabs
+                    tabs={[
+                        { name: t('basic_info'), icon: 'store' },
+                        { name: t('cars_and_drivers'), icon: 'users' },
+                        { name: t('prices'), icon: 'cash' },
+                        { name: t('address'), icon: 'map-pin' },
+                    ]}
+                    activeTab={activeTab}
+                    onTabClick={setActiveTab}
+                />
 
+                {/* Basic Info */}
                 {activeTab === 0 && (
-                    <div className="panel mb-5">
-                        <div className="mb-5">
-                            <h5 className="text-lg font-semibold dark:text-white-light">{t('basic_information')}</h5>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-5">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-white">{t('name')}</label>
-                                    <input name="company_name" type="text" className="form-input" value={form.company_name} onChange={handleInputChange} required />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-white">{t('number') || 'Company Number'}</label>
-                                    <input name="company_number" type="text" className="form-input" value={form.company_number} onChange={handleInputChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-white">{t('phone')}</label>
-                                    <input name="phone" type="tel" className="form-input" value={form.phone} onChange={handleInputChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-white">{t('email') || 'Email'}</label>
-                                    <input name="email" type="email" className="form-input" value={form.email} onChange={handleInputChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-white">{t('price') || 'Delivery Price'}</label>
-                                    <input name="delivery_price" type="number" step="0.01" className="form-input" value={form.delivery_price} onChange={handleInputChange} />
-                                </div>
+                    <div className="panel mb-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-5">
+                            <div>
+                                <label className="block text-sm font-bold">{t('name')}</label>
+                                <input type="text" className="form-input" name="company_name" value={form.company_name} onChange={handleInputChange} required />
                             </div>
-                            <div className="flex flex-col items-center">
-                                <label className="block text-sm font-bold text-gray-700 dark:text-white mb-3">{t('logo') || 'Logo'}</label>
-                                <div className="mb-4">
-                                    <img src={form.logo_url || '/assets/images/user-placeholder.webp'} alt="Company Logo" className="w-36 h-36 rounded-full object-cover border-2 border-gray-200" />
-                                </div>
-                                <div className="relative">
-                                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                                        const file = e.target.files?.[0];
-                                        if (!file) return;
-                                        const url = await uploadLogo(file);
-                                        if (url) setForm((prev) => ({ ...prev, logo_url: url }));
-                                    }} />
-                                    <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => fileInputRef.current?.click()}>
-                                        {t('select_logo')}
-                                    </button>
-                                </div>
+                            <div>
+                                <label className="block text-sm font-bold">{t('number')}</label>
+                                <input type="text" className="form-input" name="company_number" value={form.company_number} onChange={handleInputChange} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold">{t('phone')}</label>
+                                <input type="tel" className="form-input" name="phone" value={form.phone} onChange={handleInputChange} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold">{t('email')}</label>
+                                <input type="email" className="form-input" name="email" value={form.email} onChange={handleInputChange} />
                             </div>
                         </div>
-                        <div className="mt-5">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-white">{t('details') || 'Details'}</label>
+                        <div className="flex flex-col items-center">
+                            <label className="block text-sm font-bold mb-3">{t('logo')}</label>
+                            <img src={form.logo_url || '/assets/images/user-placeholder.webp'} className="w-36 h-36 rounded-full object-cover border-2 border-gray-200 mb-4" />
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const url = await uploadLogo(file);
+                                    if (url) setForm((prev) => ({ ...prev, logo_url: url }));
+                                }}
+                            />
+                            <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => fileInputRef.current?.click()}>
+                                {t('select_logo')}
+                            </button>
+                        </div>
+                        <div className="sm:col-span-2">
+                            <label className="block text-sm font-bold">{t('details')}</label>
                             <textarea name="details" className="form-textarea" rows={4} value={form.details} onChange={handleInputChange} />
                         </div>
                     </div>
                 )}
 
+                {/* Cars & Drivers */}
                 {activeTab === 1 && (
-                    <div className="panel mb-5">
-                        <div className="mb-5">
-                            <h5 className="text-lg font-semibold dark:text-white-light">{t('cars_and_drivers') || 'Cars & Drivers'}</h5>
-                        </div>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div>
-                                <h6 className="font-semibold mb-3">{t('drivers') || 'Drivers'}</h6>
-                                <div className="space-y-4">
-                                    {drivers.map((d, i) => (
-                                        <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-                                            <div>
-                                                <label className="block text-sm font-bold">{t('name')}</label>
-                                                <input type="text" className="form-input" value={d.name} onChange={(e) => updateDriver(i, 'name', e.target.value)} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-bold">{t('phone')}</label>
-                                                <input type="tel" className="form-input" value={d.phone} onChange={(e) => updateDriver(i, 'phone', e.target.value)} />
-                                            </div>
-                                            <div className="sm:col-span-2 flex justify-end">
-                                                {i > 0 && (
-                                                    <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => removeDriver(i)}>
-                                                        <IconX className="h-4 w-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <button type="button" className="btn btn-outline-primary btn-sm" onClick={addDriver}>
-                                        <IconPlus className="h-4 w-4 mr-2" /> {t('add')}
-                                    </button>
+                    <div className="panel mb-5 space-y-6">
+                        {cars.map((c, i) => (
+                            <div key={i} className=" p-4 rounded-lg space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <h5 className="font-semibold">
+                                        {t('car')} #{i + 1}
+                                    </h5>
+                                    {i > 0 && (
+                                        <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => removeCar(i)}>
+                                            <IconX className="h-4 w-4" />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <input placeholder={t('plate_number')} className="form-input" value={c.plate_number} onChange={(e) => updateCarField(i, 'plate_number', e.target.value)} />
+                                    <input placeholder={t('brand')} className="form-input" value={c.brand} onChange={(e) => updateCarField(i, 'brand', e.target.value)} />
+                                    <input placeholder={t('model')} className="form-input" value={c.model} onChange={(e) => updateCarField(i, 'model', e.target.value)} />
+                                    <input placeholder={t('color')} className="form-input" value={c.color} onChange={(e) => updateCarField(i, 'color', e.target.value)} />
+                                    <input placeholder={t('capacity')} className="form-input" value={c.capacity} onChange={(e) => updateCarField(i, 'capacity', e.target.value)} />
+                                    <input placeholder={t('car_number')} className="form-input" value={c.car_number} onChange={(e) => updateCarField(i, 'car_number', e.target.value)} />
+                                    <input placeholder={t('car_model')} className="form-input" value={c.car_model} onChange={(e) => updateCarField(i, 'car_model', e.target.value)} />
+                                    <select className="form-select" value={c.status} onChange={(e) => updateCarField(i, 'status', e.target.value)}>
+                                        <option value="active">{t('active')}</option>
+                                        <option value="inactive">{t('inactive')}</option>
+                                    </select>
+                                </div>
+
+                                {/* Driver */}
+                                <div className="mt-3 border-t pt-3">
+                                    <h6 className="font-semibold">{t('driver')}</h6>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <input placeholder={t('name')} className="form-input" value={c.driver.name} onChange={(e) => updateDriverField(i, 'name', e.target.value)} />
+                                        <input placeholder={t('phone')} className="form-input" value={c.driver.phone} onChange={(e) => updateDriverField(i, 'phone', e.target.value)} />
+                                        <input placeholder={t('id_number')} className="form-input" value={c.driver.id_number} onChange={(e) => updateDriverField(i, 'id_number', e.target.value)} />
+                                        <select className="form-select" value={c.driver.status} onChange={(e) => updateDriverField(i, 'status', e.target.value)}>
+                                            <option value="active">{t('active')}</option>
+                                            <option value="inactive">{t('inactive')}</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
-                            <div>
-                                <h6 className="font-semibold mb-3">{t('cars') || 'Cars'}</h6>
-                                <div className="space-y-4">
-                                    {cars.map((c, i) => (
-                                        <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-                                            <div>
-                                                <label className="block text-sm font-bold">{t('car_number') || 'Car Number'}</label>
-                                                <input type="text" className="form-input" value={c.car_number} onChange={(e) => updateCar(i, 'car_number', e.target.value)} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-bold">{t('car_model') || 'Car Model'}</label>
-                                                <input type="text" className="form-input" value={c.car_model} onChange={(e) => updateCar(i, 'car_model', e.target.value)} />
-                                            </div>
-                                            <div className="sm:col-span-2 flex justify-end">
-                                                {i > 0 && (
-                                                    <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => removeCar(i)}>
-                                                        <IconX className="h-4 w-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <button type="button" className="btn btn-outline-primary btn-sm" onClick={addCar}>
-                                        <IconPlus className="h-4 w-4 mr-2" /> {t('add')}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                        ))}
+                        <button type="button" className="btn btn-outline-primary btn-sm" onClick={addCar}>
+                            <IconPlus className="h-4 w-4 mr-2" /> {t('add_car_driver')}
+                        </button>
                     </div>
                 )}
 
+                {/* Prices */}
                 {activeTab === 2 && (
                     <div className="panel mb-5">
-                        <div className="mb-5">
-                            <h5 className="text-lg font-semibold dark:text-white-light">{t('prices') || 'Prices'}</h5>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-bold">{t('price') || 'Delivery Price'}</label>
-                                <input name="delivery_price" type="number" step="0.01" className="form-input" value={form.delivery_price} onChange={handleInputChange} />
-                            </div>
-                            <div className="sm:col-span-2">
-                                <label className="block text-sm font-bold">{t('details') || 'Details / Notes'}</label>
-                                <textarea name="details" className="form-textarea" rows={3} value={form.details} onChange={handleInputChange} />
-                            </div>
-                        </div>
+                        <input placeholder={t('delivery_price')} className="form-input" name="delivery_price" value={form.delivery_price} onChange={handleInputChange} />
                     </div>
                 )}
 
+                {/* Address */}
                 {activeTab === 3 && (
                     <div className="panel mb-5">
-                        <div className="mb-5">
-                            <h5 className="text-lg font-semibold dark:text-white-light">{t('address')}</h5>
-                        </div>
-                        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                            <div className="sm:col-span-2">
-                                <div className="flex items-center">
-                                    <span className="mt-1 ltr:mr-2 rtl:ml-2 text-primary">
-                                        <IconMapPin className="h-5 w-5" />
-                                    </span>
-                                    <textarea name="address" className="form-textarea flex-1" value={form.address} onChange={handleInputChange} rows={2} />
-                                </div>
-                            </div>
-                           
-                            <div className="sm:col-span-2">
-                                <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-white">{t('company_location') || 'Company Location'}</label>
-                                <div className="h-[400px] mb-4">
-                                    <MapSelector initialPosition={form.latitude && form.longitude ? [form.latitude, form.longitude] : null} onChange={handleLocationChange} height="400px" useCurrentLocationByDefault={true} />
-                                </div>
-                                {form.latitude && form.longitude && (
-                                    <p className="text-sm mt-2">
-                                        {t('selected_coordinates')}: <span className="font-semibold">{form.latitude.toFixed(6)}, {form.longitude.toFixed(6)}</span>
-                                    </p>
-                                )}
-                            </div>
+                        <textarea placeholder={t('address')} className="form-textarea mb-3" name="address" value={form.address} onChange={handleInputChange} />
+                        <div className="h-[400px]">
+                            <MapSelector initialPosition={form.latitude && form.longitude ? [form.latitude, form.longitude] : null} onChange={handleLocationChange} height="400px" />
                         </div>
                     </div>
                 )}
@@ -365,7 +351,7 @@ const AddDeliveryCompanyPage = () => {
                         {t('cancel')}
                     </button>
                     <button type="submit" disabled={loading} className="btn btn-primary">
-                        {loading ? t('submitting') : (t('create') || 'Create')}
+                        {loading ? t('submitting') : t('create')}
                     </button>
                 </div>
             </form>
@@ -374,5 +360,3 @@ const AddDeliveryCompanyPage = () => {
 };
 
 export default AddDeliveryCompanyPage;
-
-
