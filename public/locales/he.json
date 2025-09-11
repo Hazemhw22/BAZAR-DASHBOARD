@@ -645,5 +645,13 @@
     "delivery": "משלוחים",
     "delivery_orders": "הזמנות משלוח",
     "delivery_cars": "מכוניות משלוח",
-    "delivery_drivers": "נהגי משלוח"
+    "delivery_drivers": "נהגי משלוח",
+    "delivery_companies": "חברות משלוחים",
+    "add_new_delivery_company": "הוסף חברת משלוחים חדשה",
+    "edit_delivery_company": "ערוך חברת משלוחים",
+    "company_name": "שם החברה",
+    "delivery_price": "מחיר משלוח",
+    "details": "פרטים",
+    "logo": "לוגו",
+    "select_delivery_company": "בחר חברת משלוחים"
 }

@@ -687,5 +687,13 @@
     "delivery": "التوصيل",
     "delivery_orders": "طلبات التوصيل",
     "delivery_cars": "سيارات التوصيل",
-    "delivery_drivers": "سائقي التوصيل"
+    "delivery_drivers": "سائقي التوصيل",
+    "delivery_companies": "شركات التوصيل",
+    "add_new_delivery_company": "إضافة شركة توصيل جديدة",
+    "edit_delivery_company": "تعديل شركة التوصيل",
+    "company_name": "اسم الشركة",
+    "delivery_price": "سعر التوصيل",
+    "details": "التفاصيل",
+    "logo": "الشعار",
+    "select_delivery_company": "اختر شركة التوصيل"
 }

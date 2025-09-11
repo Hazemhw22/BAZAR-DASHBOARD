@@ -667,4 +667,13 @@
     "delivery": "Delivery",
     "delivery_orders": "Delivery Orders",
     "delivery_cars": "Delivery Cars",
-    "delivery_drivers": "Delivery Drivers"}
+    "delivery_drivers": "Delivery Drivers",
+    "delivery_companies": "Delivery Companies",
+    "add_new_delivery_company": "Add New Delivery Company",
+    "edit_delivery_company": "Edit Delivery Company",
+    "company_name": "Company Name",
+    "delivery_price": "Delivery Price",
+    "details": "Details",
+    "logo": "Logo",
+    "select_delivery_company": "Select Delivery Company"
+}

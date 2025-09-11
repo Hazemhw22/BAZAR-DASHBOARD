@@ -38,6 +38,7 @@ import IconMenuDocumentation from '@/components/icon/menu/icon-menu-documentatio
 import IconMenuDeliveryOrders from '@/components/icon/menu/icon-menu-delivery-orders';
 import IconMenuDeliveryCars from '@/components/icon/menu/icon-menu-delivery-cars';
 import IconMenuDeliveryDrivers from '@/components/icon/menu/icon-menu-delivery-drivers';
+import IconMenuDeliveryCompanies from '@/components/icon/menu/icon-menu-delivery-companies';
 import { usePathname } from 'next/navigation';
 import { getTranslation } from '@/i18n';
 import IconTrendingUp from '../icon/icon-trending-up';
@@ -273,6 +274,14 @@ const Sidebar = () => {
                                             <div className="flex items-center">
                                                 <IconMenuDeliveryDrivers className="shrink-0 group-hover:!text-primary" />
                                                 <span className="text-black ltr:pl-3 rtl:pr-3 dark:text-[#506690] dark:group-hover:text-white-dark">{t('delivery_drivers')}</span>
+                                            </div>
+                                        </Link>
+                                    </li>
+                                    <li className="nav-item">
+                                        <Link href="/delivery-companies" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDeliveryCompanies className="shrink-0 group-hover:!text-primary" />
+                                                <span className="text-black ltr:pl-3 rtl:pr-3 dark:text-[#506690] dark:group-hover:text-white-dark">{t('delivery_companies') || 'Delivery Companies'}</span>
                                             </div>
                                         </Link>
                                     </li>
